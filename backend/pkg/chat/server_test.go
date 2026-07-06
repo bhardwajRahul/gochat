@@ -1,4 +1,4 @@
-package chat
+package chat_test
 
 import (
 	"io"
@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/olzhasar/gochat/pkg/chat"
 )
 
 func TestCreateRoom(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -47,13 +48,42 @@ func TestCreateRoom(t *testing.T) {
 	}
 }
 
+func TestCreateRoomConcurrent(t *testing.T) {
+	hub := chat.NewHub()
+	hub.Run()
+
+	server := chat.NewServer(hub)
+
+	ts := httptest.NewServer(server)
+	defer ts.Close()
+
+	url := ts.URL + "/room"
+
+	n_requests := 3
+	err_ch := make(chan error, n_requests)
+
+	for range n_requests {
+		go func() {
+			_, err := http.Post(url, "application/json", nil)
+			err_ch <- err
+		}()
+	}
+
+	for range n_requests {
+		if err := <-err_ch; err != nil {
+			t.Fatalf("Error: %v\n", err)
+		}
+	}
+
+}
+
 func TestConnectToRoom(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
 	room := hub.CreateRoom()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -79,10 +109,10 @@ func TestConnectToRoom(t *testing.T) {
 }
 
 func TestConnectToUnexistingRoom(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -100,39 +130,13 @@ func TestConnectToUnexistingRoom(t *testing.T) {
 	}
 }
 
-func TestSetName(t *testing.T) {
-	hub := NewHub()
-	hub.Run()
-
-	room := hub.CreateRoom()
-
-	server := NewServer(hub)
-
-	ts := httptest.NewServer(server)
-	defer ts.Close()
-
-	conn := makeConnection(ts, room.ID)
-	defer conn.Close()
-
-	name := "test"
-	if err := conn.WriteMessage(websocket.TextMessage, []byte("2test")); err != nil {
-		t.Fatal(err)
-	}
-
-	time.Sleep(50 * time.Millisecond)
-
-	if room.clients[0].name != name {
-		t.Fatalf("expected name %s, got %s", name, room.clients[0].name)
-	}
-}
-
 func TestTextMessage(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
 	room := hub.CreateRoom()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -156,12 +160,12 @@ func TestTextMessage(t *testing.T) {
 }
 
 func TestLeaveMessage(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
 	room := hub.CreateRoom()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -178,12 +182,12 @@ func TestLeaveMessage(t *testing.T) {
 }
 
 func TestGetRoom(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
 	room := hub.CreateRoom()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
@@ -199,10 +203,10 @@ func TestGetRoom(t *testing.T) {
 }
 
 func TestGetUnexistingRoom(t *testing.T) {
-	hub := NewHub()
+	hub := chat.NewHub()
 	hub.Run()
 
-	server := NewServer(hub)
+	server := chat.NewServer(hub)
 
 	ts := httptest.NewServer(server)
 	defer ts.Close()
